@@ -81,7 +81,7 @@ try:
 
     st.write("---")
     
-    # 5. 進階加分功能：分級單字卡 (使用 Tabs 設計)
+   # 5. 進階加分功能：分級單字卡 (使用 Tabs 設計)
     st.subheader("💡 智慧單字庫 (Smart Vocabulary)")
     
     # 建立四個標籤頁
@@ -93,15 +93,14 @@ try:
             st.write("此篇新聞未偵測到此層級的單字。")
             return
             
-        # 將 Set 轉為 List 以便顯示，並限制顯示數量以免畫面過長
         words_to_show = list(word_set)[:10] 
         cols = st.columns(4) # 一排顯示 4 個單字
         
         for idx, word in enumerate(words_to_show):
             with cols[idx % 4]:
                 try:
-                    word_cn = GoogleTranslator(source='en', target='zh-TW').translate(word)
-                    st.metric(label=word, value=word_cn)
+                    word_trans = GoogleTranslator(source='en', target=target_lang).translate(word)
+                    st.metric(label=word, value=word_trans)
                 except:
                     st.metric(label=word, value="翻譯加載中...")
 
