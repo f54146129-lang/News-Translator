@@ -35,14 +35,37 @@ try:
     selected_entry = next(e for e in entries if e.title == selected_title)
     english_text = selected_entry.summary
     
-    # 3. 核心功能：翻譯處理
+    # 3. 核心功能：翻譯處理與進階單字分類
     with st.spinner("正在進行智慧翻譯與單字萃取..."):
         # 翻譯內文
         translated_text = GoogleTranslator(source='en', target=target_lang).translate(english_text)
         
-        # 簡單的 NLP 邏輯：利用正規表達式篩選出長度大於 6 的英文單字作為「核心單字」
-        all_words = re.findall(r'\b[a-zA-Z]{6,}\b', english_text)
-        keywords = list(set([w.lower() for w in all_words]))[:4] # 取前 4 個不重複單字
+        # 利用正規表達式抓出所有單字
+        raw_words = re.findall(r'\b[A-Za-z]+\b', english_text)
+        
+        # 初始化分類清單
+        proper_nouns = set()
+        easy_words = set()
+        med_words = set()
+        hard_words = set()
+
+        for w in raw_words:
+            # 排除太短的無意義字詞 (如 a, is, to)
+            if len(w) <= 2:
+                continue
+                
+            # 判斷專有名詞 (字首大寫)
+            if w.istitle():
+                proper_nouns.add(w)
+            else:
+                w_lower = w.lower()
+                # 依長度分級
+                if 3 <= len(w_lower) <= 5:
+                    easy_words.add(w_lower)
+                elif 6 <= len(w_lower) <= 8:
+                    med_words.add(w_lower)
+                elif len(w_lower) >= 9:
+                    hard_words.add(w_lower)
 
     # 4. 前端畫面呈現：左右雙語對照
     col1, col2 = st.columns(2)
@@ -58,18 +81,39 @@ try:
 
     st.write("---")
     
-    # 5. 加分功能：核心單字卡
-    st.subheader("💡 今日核心單字擴充 (Vocabulary)")
-    if keywords:
-        v_cols = st.columns(len(keywords))
-        for idx, word in enumerate(keywords):
-            with v_cols[idx]:
-                # 自動查詢該單字的中文解釋
-                word_cn = GoogleTranslator(source='en', target='zh-TW').translate(word)
-                st.metric(label=f"單字 {idx+1}", value=word)
-                st.markdown(f"**中文意：** {word_cn}")
-    else:
-        st.write("本篇新聞較簡短，未偵測到複雜核心單字。")
+    # 5. 進階加分功能：分級單字卡 (使用 Tabs 設計)
+    st.subheader("💡 智慧單字庫 (Smart Vocabulary)")
+    
+    # 建立四個標籤頁
+    tab1, tab2, tab3, tab4 = st.tabs(["🟢 簡單 (Easy)", "🟡 中等 (Medium)", "🔴 困難 (Hard)", "🏛️ 專有名詞 (Proper Nouns)"])
+    
+    # 定義一個建立單字卡的輔助函數
+    def create_word_cards(word_set):
+        if not word_set:
+            st.write("此篇新聞未偵測到此層級的單字。")
+            return
+            
+        # 將 Set 轉為 List 以便顯示，並限制顯示數量以免畫面過長
+        words_to_show = list(word_set)[:10] 
+        cols = st.columns(4) # 一排顯示 4 個單字
+        
+        for idx, word in enumerate(words_to_show):
+            with cols[idx % 4]:
+                try:
+                    word_cn = GoogleTranslator(source='en', target='zh-TW').translate(word)
+                    st.metric(label=word, value=word_cn)
+                except:
+                    st.metric(label=word, value="翻譯加載中...")
+
+    # 將分類好的單字填入對應的標籤頁
+    with tab1:
+        create_word_cards(easy_words)
+    with tab2:
+        create_word_cards(med_words)
+    with tab3:
+        create_word_cards(hard_words)
+    with tab4:
+        create_word_cards(proper_nouns)
 
 except Exception as e:
     st.error(f"系統暫時無法連線，請檢查網路設定。錯誤訊息: {e}")
