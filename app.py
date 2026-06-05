@@ -57,38 +57,45 @@ try:
     english_text = selected_entry.summary
     news_link = selected_entry.link
     
-    # 3. 核心功能：翻譯處理與進階單字分類
+ # 3. 核心功能：翻譯處理與進階單字分類
     with st.spinner("系統正在進行智慧翻譯與深度內文擷取..."):
         # 翻譯原本的短摘要
         translated_text = GoogleTranslator(source='en', target=target_lang).translate(english_text)
         
-        # 🌟 執行新增功能：抓取並翻譯文章大致內容
+        # 抓取並翻譯文章大致內容
         full_content_en = fetch_article_main_content(news_link)
         try:
-            # 為了避免 API 超載，限制只翻譯前 3000 個字元
             full_content_trans = GoogleTranslator(source='en', target=target_lang).translate(full_content_en[:3000])
         except:
             full_content_trans = "內文翻譯失敗或超過字數限制。"
 
-        # 單字分類邏輯
-        raw_words = re.findall(r'\b[A-Za-z]+\b', english_text)
+        # 🌟 關鍵修改 1：建立「停用詞 (Stop Words)」黑名單，排除常見無意義單字
+        stop_words = {"the", "and", "that", "have", "for", "not", "with", "this", "but", "his", "from", "they", "will", "would", "there", "their", "what", "about", "who", "which", "when", "can", "could", "them", "only", "its", "also", "then", "than", "other", "some", "very", "just", "into", "your", "our", "were", "been", "has", "had", "are", "was", "out", "two", "end", "said"}
+
+        # 🌟 關鍵修改 2：改從「完整內文 (full_content_en)」抓取單字，基數變大，單字才會豐富！
+        raw_words = re.findall(r'\b[A-Za-z]+\b', full_content_en)
+        
         proper_nouns = set()
         easy_words = set()
         med_words = set()
         hard_words = set()
 
         for w in raw_words:
-            if len(w) <= 2:
+            w_lower = w.lower()
+            
+            # 過濾掉長度小於 3 的單字，或是存在於黑名單中的單字
+            if len(w) <= 3 or w_lower in stop_words:
                 continue
+                
             if w.istitle():
                 proper_nouns.add(w)
             else:
-                w_lower = w.lower()
-                if 3 <= len(w_lower) <= 5:
+                # 🌟 關鍵修改 3：提高字母長度門檻，讓單字更具挑戰性
+                if 4 <= len(w_lower) <= 6:
                     easy_words.add(w_lower)
-                elif 6 <= len(w_lower) <= 8:
+                elif 7 <= len(w_lower) <= 9:
                     med_words.add(w_lower)
-                elif len(w_lower) >= 9:
+                elif len(w_lower) >= 10:
                     hard_words.add(w_lower)
 
     # 4. 前端畫面呈現：頭條對照
