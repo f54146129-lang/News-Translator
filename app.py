@@ -135,17 +135,26 @@ try:
 
     st.write("---")
     
-    # 5. 分級單字卡
-    st.subheader("💡 智慧單字庫 (Smart Vocabulary)")
+  # 5. 分級單字卡與語境分析
+    st.subheader("💡 智慧單字庫與語境分析 (Smart Vocabulary & Context)")
     
-    # 🌟 介面更新：把「🔥 領域焦點」排在第一個！
-    tab0, tab1, tab2, tab3, tab4 = st.tabs(["🔥 領域焦點 (Top Keywords)", "🟢 簡單 (Easy)", "🟡 中等 (Medium)", "🔴 困難 (Hard)", "🏛️ 專有名詞 (Proper Nouns)"])
+    # 標籤頁更新
+    tab0, tab1, tab2, tab3, tab4 = st.tabs(["🔥 領域焦點 (含原文例句)", "🟢 簡單", "🟡 中等", "🔴 困難", "🏛️ 專有名詞"])
     
+    # 🌟 零風險高階功能：從文章中自動抓取包含該單字的原句
+    def get_context_sentence(word, text):
+        # 簡單地用句號切分文章
+        sentences = text.split('.')
+        for s in sentences:
+            # 如果單字存在於這個句子中，就回傳整句話
+            if re.search(r'\b' + re.escape(word) + r'\b', s, re.IGNORECASE):
+                return s.strip() + "."
+        return ""
+
     def create_word_cards(word_collection):
         if not word_collection:
             st.write("此篇新聞未偵測到此層級的單字。")
             return
-        # 將資料轉為 list 並限制顯示數量
         words_to_show = list(word_collection)[:12] 
         cols = st.columns(4)
         for idx, word in enumerate(words_to_show):
@@ -156,9 +165,25 @@ try:
                 except:
                     st.metric(label=word, value="翻譯加載中...")
 
-    # 依序把對應的單字放入標籤頁中
+    # 🌟 將「領域焦點」升級為可展開的例句面板
     with tab0:
-        create_word_cards(top_domain_words)
+        st.markdown("##### 🎯 核心單字與新聞原句解析")
+        for word in top_domain_words[:6]: # 抓前 6 個最重要的單字就好，保持版面清爽
+            try:
+                word_trans = GoogleTranslator(source='en', target=target_lang).translate(word)
+                context_en = get_context_sentence(word, full_content_en)
+                
+                # 如果有找到原句，就順便翻譯原句並做成摺疊面板
+                if context_en and len(context_en) > 5:
+                    context_trans = GoogleTranslator(source='en', target=target_lang).translate(context_en)
+                    with st.expander(f"✨ **{word}** 👉  {word_trans}"):
+                        st.markdown(f"**📰 新聞原句：** {context_en}")
+                        st.markdown(f"**💡 語境翻譯 ({lang_option.split(' ')[0]})：** {context_trans}")
+                else:
+                    st.metric(label=word, value=word_trans)
+            except:
+                pass
+
     with tab1:
         create_word_cards(easy_words)
     with tab2:
