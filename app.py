@@ -114,7 +114,7 @@ try:
     with col1:
         st.subheader("📰 頭條摘要 (Headline Summary)")
         st.info(english_text)
-        st.caption(f"🔗 [點擊這裡前往 BBC 閱讀完整原文]({news_link})")
+        st.caption(f"🔗 [點擊這裡前往閱讀完整原文]({news_link})")
         
     with col2:
         st.subheader("🎓 摘要翻譯 (Translation)")
