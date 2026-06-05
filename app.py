@@ -2,23 +2,23 @@ import streamlit as st
 import feedparser
 from deep_translator import GoogleTranslator
 import re
-import requests
-from bs4 import BeautifulSoup
 from collections import Counter
+from newspaper import Article
 
 # 設定網頁為寬螢幕佈局
 st.set_page_config(layout="wide", page_title="國際時事雙語網")
 
 st.title("🌐 國際時事雙語閱讀與單字擴充網")
-st.caption("期末專案成果發表 - 智慧語言學習系統")
+st.caption(" 智慧語言學習系統")
 st.write("---")
 
 # 🌟 新增：定義不同類別的 BBC RSS 頻道網址字典
 RSS_FEEDS = {
-    "🌍 國際與政治 (World & Politics)": "http://feeds.bbci.co.uk/news/world/rss.xml",
-    "🔬 科學與環境 (Science & Environment)": "http://feeds.bbci.co.uk/news/science_and_environment/rss.xml",
-    "☕ 生活與健康 (Health & Lifestyle)": "http://feeds.bbci.co.uk/news/health/rss.xml",
-    "💻 科技創新 (Technology)": "http://feeds.bbci.co.uk/news/technology/rss.xml"
+    "🇬🇧 BBC 國際與政治": "http://feeds.bbci.co.uk/news/world/rss.xml",
+    "🇺🇸 CNN 國際頭條": "http://rss.cnn.com/rss/edition.rss",
+    "🇬🇧 BBC 科學與環境": "http://feeds.bbci.co.uk/news/science_and_environment/rss.xml",
+    "🇺🇸 CNN 科技新聞": "http://rss.cnn.com/rss/edition_technology.rss",
+    "🇬🇧 BBC 生活與健康": "http://feeds.bbci.co.uk/news/health/rss.xml"
 }
 
 # 1. 抓取 RSS 新聞摘要 (🌟 修改：加入 url 參數，讓它可以抓不同類別)
