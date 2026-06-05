@@ -67,13 +67,18 @@ try:
     
     # 3. 核心功能：翻譯處理與進階單字分類
     with st.spinner(f"系統正在擷取【{selected_category.split(' ')[0]}】最新資訊與智慧翻譯..."):
-        translated_text = GoogleTranslator(source='en', target=target_lang).translate(english_text)
         
+        # 🌟 加上 try-except 防護罩，就算 Google 罷工，網頁也不會崩潰
+        try:
+            translated_text = GoogleTranslator(source='en', target=target_lang).translate(english_text)
+        except:
+            translated_text = "⚠️ Google 翻譯暫時忙線中（免費 API 頻率限制），請閱讀左側原文或稍後重新整理。"
+            
         full_content_en = fetch_universal_article_content(news_link)
         try:
             full_content_trans = GoogleTranslator(source='en', target=target_lang).translate(full_content_en[:3000])
         except:
-            full_content_trans = "內文翻譯失敗或超過字數限制。"
+            full_content_trans = "⚠️ 內文翻譯失敗：超過字數限制或 API 暫時忙線中。"
 
         # 停用詞黑名單 (過濾掉無意義的常見字)
         stop_words = {"the", "and", "that", "have", "for", "not", "with", "this", "but", "his", "from", "they", "will", "would", "there", "their", "what", "about", "who", "which", "when", "can", "could", "them", "only", "its", "also", "then", "than", "other", "some", "very", "just", "into", "your", "our", "were", "been", "has", "had", "are", "was", "out", "two", "end", "said", "more", "over", "after"}
