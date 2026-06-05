@@ -27,19 +27,18 @@ def fetch_bbc_news(url):
     feed = feedparser.parse(url)
     return feed.entries[:8]
 
-# 自動抓取文章內文
 @st.cache_data(ttl=600)
-def fetch_article_main_content(url):
+def fetch_universal_article_content(url):
     try:
-        headers = {'User-Agent': 'Mozilla/5.0'}
-        res = requests.get(url, headers=headers, timeout=5)
-        soup = BeautifulSoup(res.text, 'html.parser')
-        paragraphs = soup.find_all('p')
-        valid_p = [p.text for p in paragraphs if len(p.text) > 30]
+        article = Article(url)
+        article.download()
+        article.parse()
+        paragraphs = article.text.split('\n')
+        valid_p = [p.strip() for p in paragraphs if len(p.strip()) > 30]
         main_content = " \n\n".join(valid_p[:4])
         return main_content if main_content else "無法自動抓取此篇新聞內文，請點擊上方連結閱讀。"
-    except:
-        return "擷取原文內容失敗。"
+    except Exception as e:
+        return "擷取原文內容失敗，可能是該網站具有反爬蟲機制。"
 
 try:
     # 2. 側邊欄控制項
@@ -70,7 +69,7 @@ try:
     with st.spinner(f"系統正在擷取【{selected_category.split(' ')[0]}】最新資訊與智慧翻譯..."):
         translated_text = GoogleTranslator(source='en', target=target_lang).translate(english_text)
         
-        full_content_en = fetch_article_main_content(news_link)
+        full_content_en = fetch_universal_article_content(news_link)
         try:
             full_content_trans = GoogleTranslator(source='en', target=target_lang).translate(full_content_en[:3000])
         except:
