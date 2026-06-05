@@ -1,4 +1,3 @@
-
 import streamlit as st
 import feedparser
 from deep_translator import GoogleTranslator
@@ -13,42 +12,51 @@ st.title("🌐 國際時事雙語閱讀與單字擴充網")
 st.caption("期末專案成果發表 - 智慧語言學習系統")
 st.write("---")
 
-# 1. 抓取 RSS 新聞摘要
+# 🌟 新增：定義不同類別的 BBC RSS 頻道網址字典
+RSS_FEEDS = {
+    "🌍 國際與政治 (World & Politics)": "http://feeds.bbci.co.uk/news/world/rss.xml",
+    "🔬 科學與環境 (Science & Environment)": "http://feeds.bbci.co.uk/news/science_and_environment/rss.xml",
+    "☕ 生活與健康 (Health & Lifestyle)": "http://feeds.bbci.co.uk/news/health/rss.xml",
+    "💻 科技創新 (Technology)": "http://feeds.bbci.co.uk/news/technology/rss.xml"
+}
+
+# 1. 抓取 RSS 新聞摘要 (🌟 修改：加入 url 參數，讓它可以抓不同類別)
 @st.cache_data(ttl=600)
-def fetch_bbc_news():
-    url = "http://feeds.bbci.co.uk/news/world/rss.xml"
+def fetch_bbc_news(url):
     feed = feedparser.parse(url)
     return feed.entries[:8]
 
-# 🌟 新增：自動順著網址去抓取「真實文章內文」的爬蟲函數
+# 自動抓取文章內文
 @st.cache_data(ttl=600)
 def fetch_article_main_content(url):
     try:
         headers = {'User-Agent': 'Mozilla/5.0'}
         res = requests.get(url, headers=headers, timeout=5)
         soup = BeautifulSoup(res.text, 'html.parser')
-        
-        # BBC 新聞段落通常包在 <p> 標籤內，我們抓取所有段落
         paragraphs = soup.find_all('p')
-        # 過濾掉太短的版權宣告或無意義字串
         valid_p = [p.text for p in paragraphs if len(p.text) > 30]
-        
-        # 取前 4 個有實質內容的段落作為「大致內容」
         main_content = " \n\n".join(valid_p[:4])
         return main_content if main_content else "無法自動抓取此篇新聞內文，請點擊上方連結閱讀。"
     except:
         return "擷取原文內容失敗。"
 
 try:
-    entries = fetch_bbc_news()
-    titles = [e.title for e in entries]
-    
     # 2. 側邊欄控制項
     st.sidebar.header("⚙️ 控制面板")
-    selected_title = st.sidebar.selectbox("請選擇今日頭條新聞：", titles)
+    
+    # 🌟 新增：讓使用者先選擇「新聞類別」
+    selected_category = st.sidebar.selectbox("📂 請選擇新聞類別：", list(RSS_FEEDS.keys()))
+    
+    # 根據選定的類別，找出對應的 RSS 網址並抓取新聞
+    feed_url = RSS_FEEDS[selected_category]
+    entries = fetch_bbc_news(feed_url)
+    titles = [e.title for e in entries]
+    
+    # 🌟 接著才讓使用者選擇該類別下的「頭條新聞」
+    selected_title = st.sidebar.selectbox("📰 請選擇頭條新聞：", titles)
     
     lang_option = st.sidebar.radio(
-        "請選擇目標學習語言：",
+        "🗣️ 請選擇目標學習語言：",
         ["法文 (French)", "繁體中文 (Traditional Chinese)"]
     )
     target_lang = 'fr' if "法文" in lang_option else 'zh-TW'
@@ -57,24 +65,20 @@ try:
     english_text = selected_entry.summary
     news_link = selected_entry.link
     
- # 3. 核心功能：翻譯處理與進階單字分類
-    with st.spinner("系統正在進行智慧翻譯與深度內文擷取..."):
-        # 翻譯原本的短摘要
+    # 3. 核心功能：翻譯處理與進階單字分類
+    with st.spinner(f"系統正在擷取【{selected_category.split(' ')[0]}】最新資訊與智慧翻譯..."):
         translated_text = GoogleTranslator(source='en', target=target_lang).translate(english_text)
         
-        # 抓取並翻譯文章大致內容
         full_content_en = fetch_article_main_content(news_link)
         try:
             full_content_trans = GoogleTranslator(source='en', target=target_lang).translate(full_content_en[:3000])
         except:
             full_content_trans = "內文翻譯失敗或超過字數限制。"
 
-        # 🌟 關鍵修改 1：建立「停用詞 (Stop Words)」黑名單，排除常見無意義單字
+        # 停用詞黑名單
         stop_words = {"the", "and", "that", "have", "for", "not", "with", "this", "but", "his", "from", "they", "will", "would", "there", "their", "what", "about", "who", "which", "when", "can", "could", "them", "only", "its", "also", "then", "than", "other", "some", "very", "just", "into", "your", "our", "were", "been", "has", "had", "are", "was", "out", "two", "end", "said"}
 
-        # 🌟 關鍵修改 2：改從「完整內文 (full_content_en)」抓取單字，基數變大，單字才會豐富！
         raw_words = re.findall(r'\b[A-Za-z]+\b', full_content_en)
-        
         proper_nouns = set()
         easy_words = set()
         med_words = set()
@@ -82,15 +86,11 @@ try:
 
         for w in raw_words:
             w_lower = w.lower()
-            
-            # 過濾掉長度小於 3 的單字，或是存在於黑名單中的單字
             if len(w) <= 3 or w_lower in stop_words:
                 continue
-                
             if w.istitle():
                 proper_nouns.add(w)
             else:
-                # 🌟 關鍵修改 3：提高字母長度門檻，讓單字更具挑戰性
                 if 4 <= len(w_lower) <= 6:
                     easy_words.add(w_lower)
                 elif 7 <= len(w_lower) <= 9:
@@ -98,7 +98,7 @@ try:
                 elif len(w_lower) >= 10:
                     hard_words.add(w_lower)
 
-    # 4. 前端畫面呈現：頭條對照
+    # 4. 前端畫面呈現
     col1, col2 = st.columns(2)
     with col1:
         st.subheader("📰 頭條摘要 (Headline Summary)")
@@ -111,7 +111,6 @@ try:
 
     st.write("---")
     
-    # 🌟 新增區塊：使用「摺疊面板 (Expander)」來顯示長篇的大致內容
     st.subheader("📄 文章大致內容 (Article Overview)")
     with st.expander("👉 點擊展開：查看原文前段內容與全文翻譯", expanded=False):
         col_a, col_b = st.columns(2)
@@ -130,9 +129,9 @@ try:
     
     def create_word_cards(word_set):
         if not word_set:
-            st.write("此篇摘要未偵測到此層級的單字。")
+            st.write("此篇新聞未偵測到此層級的單字。")
             return
-        words_to_show = list(word_set)[:10] 
+        words_to_show = list(word_set)[:12] # 稍微增加顯示數量到 12 個
         cols = st.columns(4)
         for idx, word in enumerate(words_to_show):
             with cols[idx % 4]:
