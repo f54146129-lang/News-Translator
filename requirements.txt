@@ -1,3 +1,5 @@
 streamlit
 feedparser
 deep-translator
+beautifulsoup4
+requests
