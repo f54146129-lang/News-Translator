@@ -4,6 +4,7 @@ from deep_translator import GoogleTranslator
 import re
 import requests
 from bs4 import BeautifulSoup
+from collections import Counter
 
 # 設定網頁為寬螢幕佈局
 st.set_page_config(layout="wide", page_title="國際時事雙語網")
@@ -75,19 +76,25 @@ try:
         except:
             full_content_trans = "內文翻譯失敗或超過字數限制。"
 
-        # 停用詞黑名單
-        stop_words = {"the", "and", "that", "have", "for", "not", "with", "this", "but", "his", "from", "they", "will", "would", "there", "their", "what", "about", "who", "which", "when", "can", "could", "them", "only", "its", "also", "then", "than", "other", "some", "very", "just", "into", "your", "our", "were", "been", "has", "had", "are", "was", "out", "two", "end", "said"}
+        # 停用詞黑名單 (過濾掉無意義的常見字)
+        stop_words = {"the", "and", "that", "have", "for", "not", "with", "this", "but", "his", "from", "they", "will", "would", "there", "their", "what", "about", "who", "which", "when", "can", "could", "them", "only", "its", "also", "then", "than", "other", "some", "very", "just", "into", "your", "our", "were", "been", "has", "had", "are", "was", "out", "two", "end", "said", "more", "over", "after"}
 
         raw_words = re.findall(r'\b[A-Za-z]+\b', full_content_en)
+        
         proper_nouns = set()
         easy_words = set()
         med_words = set()
         hard_words = set()
+        valid_words_for_freq = [] # 🌟 新增：用來收集有意義的單字，準備計算頻率
 
         for w in raw_words:
             w_lower = w.lower()
             if len(w) <= 3 or w_lower in stop_words:
                 continue
+                
+            # 收集用來計算頻率的有效單字
+            valid_words_for_freq.append(w_lower)
+
             if w.istitle():
                 proper_nouns.add(w)
             else:
@@ -97,6 +104,11 @@ try:
                     med_words.add(w_lower)
                 elif len(w_lower) >= 10:
                     hard_words.add(w_lower)
+
+        # 🌟 核心新功能：詞頻分析 (Term Frequency)，抓取該篇文章的主題核心字
+        word_counts = Counter(valid_words_for_freq)
+        # 取出出現頻率最高的 12 個單字
+        top_domain_words = [word for word, count in word_counts.most_common(12)]
 
     # 4. 前端畫面呈現
     col1, col2 = st.columns(2)
@@ -125,13 +137,16 @@ try:
     
     # 5. 分級單字卡
     st.subheader("💡 智慧單字庫 (Smart Vocabulary)")
-    tab1, tab2, tab3, tab4 = st.tabs(["🟢 簡單 (Easy)", "🟡 中等 (Medium)", "🔴 困難 (Hard)", "🏛️ 專有名詞 (Proper Nouns)"])
     
-    def create_word_cards(word_set):
-        if not word_set:
+    # 🌟 介面更新：把「🔥 領域焦點」排在第一個！
+    tab0, tab1, tab2, tab3, tab4 = st.tabs(["🔥 領域焦點 (Top Keywords)", "🟢 簡單 (Easy)", "🟡 中等 (Medium)", "🔴 困難 (Hard)", "🏛️ 專有名詞 (Proper Nouns)"])
+    
+    def create_word_cards(word_collection):
+        if not word_collection:
             st.write("此篇新聞未偵測到此層級的單字。")
             return
-        words_to_show = list(word_set)[:12] # 稍微增加顯示數量到 12 個
+        # 將資料轉為 list 並限制顯示數量
+        words_to_show = list(word_collection)[:12] 
         cols = st.columns(4)
         for idx, word in enumerate(words_to_show):
             with cols[idx % 4]:
@@ -141,6 +156,9 @@ try:
                 except:
                     st.metric(label=word, value="翻譯加載中...")
 
+    # 依序把對應的單字放入標籤頁中
+    with tab0:
+        create_word_cards(top_domain_words)
     with tab1:
         create_word_cards(easy_words)
     with tab2:
