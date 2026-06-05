@@ -1,7 +1,10 @@
+
 import streamlit as st
 import feedparser
 from deep_translator import GoogleTranslator
 import re
+import requests
+from bs4 import BeautifulSoup
 
 # 設定網頁為寬螢幕佈局
 st.set_page_config(layout="wide", page_title="國際時事雙語網")
@@ -10,12 +13,31 @@ st.title("🌐 國際時事雙語閱讀與單字擴充網")
 st.caption("期末專案成果發表 - 智慧語言學習系統")
 st.write("---")
 
-# 1. 抓取新聞 (使用 BBC World News RSS，避開反爬蟲，速度極快)
-@st.cache_data(ttl=600) # 快取資料 10 分鐘，避免頻繁請求被鎖 IP
+# 1. 抓取 RSS 新聞摘要
+@st.cache_data(ttl=600)
 def fetch_bbc_news():
     url = "http://feeds.bbci.co.uk/news/world/rss.xml"
     feed = feedparser.parse(url)
-    return feed.entries[:8]  # 取前 8 則最新頭條
+    return feed.entries[:8]
+
+# 🌟 新增：自動順著網址去抓取「真實文章內文」的爬蟲函數
+@st.cache_data(ttl=600)
+def fetch_article_main_content(url):
+    try:
+        headers = {'User-Agent': 'Mozilla/5.0'}
+        res = requests.get(url, headers=headers, timeout=5)
+        soup = BeautifulSoup(res.text, 'html.parser')
+        
+        # BBC 新聞段落通常包在 <p> 標籤內，我們抓取所有段落
+        paragraphs = soup.find_all('p')
+        # 過濾掉太短的版權宣告或無意義字串
+        valid_p = [p.text for p in paragraphs if len(p.text) > 30]
+        
+        # 取前 4 個有實質內容的段落作為「大致內容」
+        main_content = " \n\n".join(valid_p[:4])
+        return main_content if main_content else "無法自動抓取此篇新聞內文，請點擊上方連結閱讀。"
+    except:
+        return "擷取原文內容失敗。"
 
 try:
     entries = fetch_bbc_news()
@@ -31,35 +53,37 @@ try:
     )
     target_lang = 'fr' if "法文" in lang_option else 'zh-TW'
     
-    # 找到使用者選中的那則新聞
     selected_entry = next(e for e in entries if e.title == selected_title)
     english_text = selected_entry.summary
+    news_link = selected_entry.link
     
     # 3. 核心功能：翻譯處理與進階單字分類
-    with st.spinner("正在進行智慧翻譯與單字萃取..."):
-        # 翻譯內文
+    with st.spinner("系統正在進行智慧翻譯與深度內文擷取..."):
+        # 翻譯原本的短摘要
         translated_text = GoogleTranslator(source='en', target=target_lang).translate(english_text)
         
-        # 利用正規表達式抓出所有單字
+        # 🌟 執行新增功能：抓取並翻譯文章大致內容
+        full_content_en = fetch_article_main_content(news_link)
+        try:
+            # 為了避免 API 超載，限制只翻譯前 3000 個字元
+            full_content_trans = GoogleTranslator(source='en', target=target_lang).translate(full_content_en[:3000])
+        except:
+            full_content_trans = "內文翻譯失敗或超過字數限制。"
+
+        # 單字分類邏輯
         raw_words = re.findall(r'\b[A-Za-z]+\b', english_text)
-        
-        # 初始化分類清單
         proper_nouns = set()
         easy_words = set()
         med_words = set()
         hard_words = set()
 
         for w in raw_words:
-            # 排除太短的無意義字詞 (如 a, is, to)
             if len(w) <= 2:
                 continue
-                
-            # 判斷專有名詞 (字首大寫)
             if w.istitle():
                 proper_nouns.add(w)
             else:
                 w_lower = w.lower()
-                # 依長度分級
                 if 3 <= len(w_lower) <= 5:
                     easy_words.add(w_lower)
                 elif 6 <= len(w_lower) <= 8:
@@ -67,35 +91,42 @@ try:
                 elif len(w_lower) >= 9:
                     hard_words.add(w_lower)
 
-    # 4. 前端畫面呈現：左右雙語對照
+    # 4. 前端畫面呈現：頭條對照
     col1, col2 = st.columns(2)
-    
     with col1:
-        st.subheader("📰 英文原文 (Original)")
+        st.subheader("📰 頭條摘要 (Headline Summary)")
         st.info(english_text)
-        st.caption(f"🔗 [閱讀完整新聞]({selected_entry.link})")
+        st.caption(f"🔗 [點擊這裡前往 BBC 閱讀完整原文]({news_link})")
         
     with col2:
-        st.subheader("🎓 智慧翻譯 (Translation)")
+        st.subheader("🎓 摘要翻譯 (Translation)")
         st.success(translated_text)
 
     st.write("---")
     
-   # 5. 進階加分功能：分級單字卡 (使用 Tabs 設計)
-    st.subheader("💡 智慧單字庫 (Smart Vocabulary)")
+    # 🌟 新增區塊：使用「摺疊面板 (Expander)」來顯示長篇的大致內容
+    st.subheader("📄 文章大致內容 (Article Overview)")
+    with st.expander("👉 點擊展開：查看原文前段內容與全文翻譯", expanded=False):
+        col_a, col_b = st.columns(2)
+        with col_a:
+            st.markdown("**原文摘錄 (前四段)：**")
+            st.write(full_content_en)
+        with col_b:
+            st.markdown(f"**大致內容翻譯 ({lang_option.split(' ')[0]})：**")
+            st.write(full_content_trans)
+
+    st.write("---")
     
-    # 建立四個標籤頁
+    # 5. 分級單字卡
+    st.subheader("💡 智慧單字庫 (Smart Vocabulary)")
     tab1, tab2, tab3, tab4 = st.tabs(["🟢 簡單 (Easy)", "🟡 中等 (Medium)", "🔴 困難 (Hard)", "🏛️ 專有名詞 (Proper Nouns)"])
     
-    # 定義一個建立單字卡的輔助函數
     def create_word_cards(word_set):
         if not word_set:
-            st.write("此篇新聞未偵測到此層級的單字。")
+            st.write("此篇摘要未偵測到此層級的單字。")
             return
-            
         words_to_show = list(word_set)[:10] 
-        cols = st.columns(4) # 一排顯示 4 個單字
-        
+        cols = st.columns(4)
         for idx, word in enumerate(words_to_show):
             with cols[idx % 4]:
                 try:
@@ -104,7 +135,6 @@ try:
                 except:
                     st.metric(label=word, value="翻譯加載中...")
 
-    # 將分類好的單字填入對應的標籤頁
     with tab1:
         create_word_cards(easy_words)
     with tab2:
